@@ -96,8 +96,11 @@ Available character sets: {', '.join(CHAR_SETS.keys())}
             # Render as image
             output_img_path = args.output or "ascii_output.png"
             
+            # Pass color_data if color was enabled
+            color_data = getattr(converter, '_last_color_data', None) if args.color else None
+            
             # Use the width (auto-detected or specified)
-            converter.render_to_image(ascii_art, output_path=output_img_path)
+            converter.render_to_image(ascii_art, output_path=output_img_path, color_data=color_data)
             print(f"\nASCII art rendered as image: {output_img_path} (width: {width} chars)")
         elif args.output:
             # Save as text file

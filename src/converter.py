@@ -58,12 +58,7 @@ class AsciiConverter:
         # Resize the image
         image = self._resize_image(image)
         resized_size = image.size
-        
-        # TODO: Remove debug
-        print(f"Debug: Original size: {original_size}, Resized to: {resized_size}, "
-              f"Compression: {resized_size[1]/original_size[1]*100:.1f}% of original height", 
-              file=sys.stderr)
-        
+
         # Capture color data before grayscale conversion if color is enabled
         color_data = None
         if self.use_color:
@@ -72,8 +67,13 @@ class AsciiConverter:
         # Convert to grayscale
         image = self._convert_to_grayscale(image)
         
-        # Convert pixels to ASCII characters (with color if enabled)
-        ascii_art = self._pixels_to_ascii(image, color_data)
+        # Convert pixels to ASCII characters
+        # For terminal: apply ANSI codes if color enabled
+        # For image rendering: color_data will be passed separately to render_to_image
+        ascii_art = self._pixels_to_ascii(image, color_data if self.use_color else None)
+        
+        # Store color_data for potential image rendering (even if ANSI wasn't applied)
+        self._last_color_data = color_data
         
         return ascii_art
     
@@ -270,23 +270,30 @@ class AsciiConverter:
         return '\n'.join(ascii_art)
     
     
-    def render_to_image(self, ascii_art: str, font_size: int = 10, output_path: str = "ascii_output.png") -> Image.Image:
+    def render_to_image(self, ascii_art: str, font_size: int = 10, output_path: str = "ascii_output.png", color_data: list = None) -> Image.Image:
         """
         Render ASCII art as an image file.
         Useful for debugging proportions without terminal rendering effects.
+        Supports colored rendering if color_data is provided.
         
         Args:
-            ascii_art: ASCII art string
+            ascii_art: ASCII art string (may contain ANSI codes if color was used)
             font_size: Font size for rendering (default: 10)
             output_path: Path to save the image
+            color_data: Optional list of (R, G, B) tuples for colored rendering
             
         Returns:
             PIL Image object of the rendered ASCII art
         """
         from PIL import ImageDraw, ImageFont
+        import re
+        
+        # Strip ANSI escape codes from ASCII art string for rendering
+        ansi_escape = re.compile(r'\033\[[0-9;]*m')
+        clean_ascii = ansi_escape.sub('', ascii_art)
         
         # Split into lines
-        lines = ascii_art.split('\n')
+        lines = clean_ascii.split('\n')
         if not lines:
             return None
         
@@ -312,11 +319,31 @@ class AsciiConverter:
             except:
                 font = ImageFont.load_default()
         
-        # Draw each line
-        y = 0
-        for line in lines:
-            draw.text((0, y), line, fill='black', font=font)
-            y += int(char_height)
+        # Draw each character with its color if color_data is provided
+        if color_data:
+            pixel_index = 0
+            char_width_px = int(char_width)
+            char_height_px = int(char_height)
+            
+            for line_idx, line in enumerate(lines):
+                x = 0
+                for char in line:
+                    if pixel_index < len(color_data):
+                        r, g, b = color_data[pixel_index]
+                        color = (r, g, b)
+                    else:
+                        color = 'black'  # Fallback to black if color_data is insufficient
+                    
+                    # Draw each character individually with its color
+                    draw.text((x, line_idx * char_height_px), char, fill=color, font=font)
+                    x += char_width_px
+                    pixel_index += 1
+        else:
+            # Draw each line without color (original behavior)
+            y = 0
+            for line in lines:
+                draw.text((0, y), line, fill='black', font=font)
+                y += int(char_height)
         
         # Save the image
         img.save(output_path)
