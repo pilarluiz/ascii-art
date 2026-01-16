@@ -24,5 +24,7 @@ DEFAULT_HEIGHT = None  # None means auto-calculate based on aspect ratio
 # Aspect ratio correction factor
 # Terminal characters are typically taller than they are wide (~2:1 ratio)
 # This factor helps maintain the original image proportions
-ASPECT_RATIO_CORRECTION = 0.55
+# Lower values = more height compression to compensate for tall terminal chars
+# Typical values: 0.4-0.6 for most terminals
+ASPECT_RATIO_CORRECTION = 0.5
 
