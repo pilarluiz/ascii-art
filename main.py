@@ -54,16 +54,32 @@ Available character sets: {', '.join(CHAR_SETS.keys())}
     parser.add_argument(
         "--render-image",
         action="store_true",
-        help="Render ASCII art as an image file (useful for debugging proportions)"
+        help="Render ASCII art as an image file"
     )
     
     args = parser.parse_args()
     
+    # Auto-detect image width if not specified (use default for terminal, auto for images)
+    width = args.width
+    if args.width == DEFAULT_WIDTH and args.render_image:
+        # For image rendering, auto-detect width from image
+        from PIL import Image
+        try:
+            with Image.open(args.image_path) as img:
+                # Use a percentage of image width, capped at reasonable max
+                # This gives good detail without being excessive
+                auto_width = min(int(img.width * 0.3), 500)  # 30% of image width, max 500
+                width = auto_width
+                print(f"Auto-detected width from image: {img.width}px → {width} characters")
+        except Exception:
+            # Fall back to default if we can't detect
+            width = DEFAULT_WIDTH
+    
     # Create converter with specified options
     try:
-        converter = AsciiConverter(width=args.width, char_set=args.char_set)
+        converter = AsciiConverter(width=width, char_set=args.char_set)
         print(f"Converting {args.image_path}...")
-        print(f"Width: {args.width} characters, Character set: {args.char_set}")
+        print(f"Width: {width} characters, Character set: {args.char_set}")
         print("-" * 50)
         
         # Convert the image
@@ -71,20 +87,12 @@ Available character sets: {', '.join(CHAR_SETS.keys())}
         
         # Output result
         if args.render_image:
-            # Render as image - use higher resolution for better quality
-            # For images, we can use much higher resolution than terminal width
+            # Render as image
             output_img_path = args.output or "ascii_output.png"
             
-            # Use higher width for image rendering (better detail)
-            # Scale up from terminal width, or use a fixed high resolution
-            image_width = max(args.width * 3, 400)  # At least 3x terminal width, or 400 minimum
-            
-            # Create a new converter with higher resolution for image
-            image_converter = AsciiConverter(width=image_width, char_set=args.char_set)
-            high_res_ascii = image_converter.convert_image(args.image_path)
-            
-            converter.render_to_image(high_res_ascii, output_path=output_img_path)
-            print(f"\nASCII art rendered as image: {output_img_path} (width: {image_width} chars)")
+            # Use the width (auto-detected or specified)
+            converter.render_to_image(ascii_art, output_path=output_img_path)
+            print(f"\nASCII art rendered as image: {output_img_path} (width: {width} chars)")
         elif args.output:
             # Save as text file
             with open(args.output, 'w', encoding='utf-8') as f:

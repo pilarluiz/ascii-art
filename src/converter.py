@@ -57,7 +57,7 @@ class AsciiConverter:
         image = self._resize_image(image)
         resized_size = image.size
         
-        # Debug: print dimensions (can be removed later)
+        # TODO: Remove debug
         print(f"Debug: Original size: {original_size}, Resized to: {resized_size}, "
               f"Compression: {resized_size[1]/original_size[1]*100:.1f}% of original height", 
               file=sys.stderr)

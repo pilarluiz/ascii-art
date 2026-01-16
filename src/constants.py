@@ -18,7 +18,7 @@ CHAR_SETS = {
 
 # Default configuration
 DEFAULT_WIDTH = 100
-DEFAULT_CHAR_SET = "standard"
+DEFAULT_CHAR_SET = "simple"
 DEFAULT_HEIGHT = None  # None means auto-calculate based on aspect ratio
 
 # Aspect ratio correction factor
