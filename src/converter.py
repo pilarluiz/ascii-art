@@ -18,15 +18,17 @@ class AsciiConverter:
     and maps each pixel's brightness to an ASCII character.
     """
     
-    def __init__(self, width: int = DEFAULT_WIDTH, char_set: str = DEFAULT_CHAR_SET) -> None:
+    def __init__(self, width: int = DEFAULT_WIDTH, char_set: str = DEFAULT_CHAR_SET, use_color: bool = False) -> None:
         """
         Initialize the ASCII converter.
         
         Args:
             width: Width of the output ASCII art in characters
             char_set: Name of character set to use (from constants.CHAR_SETS)
+            use_color: Whether to use color output (ANSI colors for terminal)
         """
         self.width = width
+        self.use_color = use_color
         
         # Validate and store the character set
         if char_set not in CHAR_SETS:
@@ -62,11 +64,16 @@ class AsciiConverter:
               f"Compression: {resized_size[1]/original_size[1]*100:.1f}% of original height", 
               file=sys.stderr)
         
+        # Capture color data before grayscale conversion if color is enabled
+        color_data = None
+        if self.use_color:
+            color_data = self._capture_color_data(image)
+        
         # Convert to grayscale
         image = self._convert_to_grayscale(image)
         
-        # Convert pixels to ASCII characters
-        ascii_art = self._pixels_to_ascii(image)
+        # Convert pixels to ASCII characters (with color if enabled)
+        ascii_art = self._pixels_to_ascii(image, color_data)
         
         return ascii_art
     
@@ -133,6 +140,48 @@ class AsciiConverter:
         return resized_image
     
     
+    def _capture_color_data(self, image: Image.Image) -> list:
+        """
+        Capture RGB color data from image before grayscale conversion.
+        
+        Args:
+            image: PIL Image object (RGB/RGBA)
+            
+        Returns:
+            List of (R, G, B) tuples, one per pixel
+        """
+        # Ensure image is in RGB mode
+        if image.mode != 'RGB':
+            rgb_image = image.convert('RGB')
+        else:
+            rgb_image = image
+        
+        # Get all pixel data as a flat list of (R, G, B) tuples
+        pixels = list(rgb_image.getdata())
+        return pixels
+    
+    
+    def _rgb_to_ansi(self, r: int, g: int, b: int) -> str:
+        """
+        Convert RGB values to ANSI 256-color escape code.
+        
+        Args:
+            r: Red value (0-255)
+            g: Green value (0-255)
+            b: Blue value (0-255)
+            
+        Returns:
+            ANSI escape code string for the color
+        """
+        # Map RGB (0-255) to ANSI 256-color palette (216 colors from 16-231)
+        # Formula: 16 + 36*R + 6*G + B where R,G,B are 0-5
+        r6 = int(r / 255 * 5)
+        g6 = int(g / 255 * 5)
+        b6 = int(b / 255 * 5)
+        color_code = 16 + 36 * r6 + 6 * g6 + b6
+        return f"\033[38;5;{color_code}m"
+    
+    
     def _convert_to_grayscale(self, image: Image.Image) -> Image.Image:
         """
         Convert image to grayscale with histogram equalization for better contrast.
@@ -154,16 +203,18 @@ class AsciiConverter:
         return equalized_image
     
     
-    def _pixels_to_ascii(self, image: Image.Image) -> str:
+    def _pixels_to_ascii(self, image: Image.Image, color_data: list = None) -> str:
         """
         Convert image pixels to ASCII characters.
         Maps brightness values (0-255) to characters in the character set.
+        Optionally applies color using ANSI escape codes.
         
         Args:
             image: Grayscale PIL Image object
+            color_data: Optional list of (R, G, B) tuples for color (one per pixel)
             
         Returns:
-            String containing ASCII art
+            String containing ASCII art (with ANSI color codes if color_data provided)
         """
         # Get image dimensions
         width, height = image.size
@@ -202,6 +253,14 @@ class AsciiConverter:
                 
                 # Get the character from the character set
                 char = self.characters[char_index]
+                
+                # Apply color if color_data is provided
+                if color_data and pixel_index < len(color_data):
+                    r, g, b = color_data[pixel_index]
+                    ansi_color = self._rgb_to_ansi(r, g, b)
+                    reset_code = "\033[0m"
+                    char = f"{ansi_color}{char}{reset_code}"
+                
                 row.append(char)
             
             # Add row to ASCII art with newline

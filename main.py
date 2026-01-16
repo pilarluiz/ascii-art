@@ -57,6 +57,12 @@ Available character sets: {', '.join(CHAR_SETS.keys())}
         help="Render ASCII art as an image file"
     )
     
+    parser.add_argument(
+        "--color",
+        action="store_true",
+        help="Enable color output (ANSI colors for terminal)"
+    )
+    
     args = parser.parse_args()
     
     # Auto-detect image width if not specified (use default for terminal, auto for images)
@@ -77,7 +83,7 @@ Available character sets: {', '.join(CHAR_SETS.keys())}
     
     # Create converter with specified options
     try:
-        converter = AsciiConverter(width=width, char_set=args.char_set)
+        converter = AsciiConverter(width=width, char_set=args.char_set, use_color=args.color)
         print(f"Converting {args.image_path}...")
         print(f"Width: {width} characters, Character set: {args.char_set}")
         print("-" * 50)
