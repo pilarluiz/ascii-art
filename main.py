@@ -69,7 +69,8 @@ Available character sets: {', '.join(CHAR_SETS.keys())}
                 f.write(ascii_art)
             print(f"\nASCII art saved to: {args.output}")
         else:
-            print(ascii_art)
+            # Print to terminal
+            print("\n" + ascii_art)
             
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
