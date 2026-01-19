@@ -5,17 +5,12 @@ Converts images to ASCII art representation.
 """
 
 from PIL import Image
-import sys
-# import numpy as np
 from .constants import CHAR_SETS, DEFAULT_WIDTH, DEFAULT_CHAR_SET, ASPECT_RATIO_CORRECTION
 
 
 class AsciiConverter:
     """
     Converts images to ASCII art.
-    
-    The converter takes an image, resizes it, converts to grayscale,
-    and maps each pixel's brightness to an ASCII character.
     """
     
     def __init__(self, width: int = DEFAULT_WIDTH, char_set: str = DEFAULT_CHAR_SET, use_color: bool = False) -> None:
@@ -58,19 +53,34 @@ class AsciiConverter:
         # Resize the image
         image = self._resize_image(image)
         resized_size = image.size
-
-        # Capture color data before grayscale conversion if color is enabled
+        
+        # Initialize color_data
         color_data = None
+        
+        # Enhance the image before capturing colors
         if self.use_color:
-            color_data = self._capture_color_data(image)
-        
-        # Convert to grayscale
-        image = self._convert_to_grayscale(image)
-        
+            from PIL import ImageEnhance
+            
+            # Enhance brightness and sharpness to make colors pop
+            brightened_image = ImageEnhance.Brightness(image).enhance(1.2)  # 20% brighter
+            sharpened_image = ImageEnhance.Sharpness(brightened_image).enhance(1.5)  # 50% sharper
+            
+            # Capture colors from the enhanced image
+            color_data = self._capture_color_data(sharpened_image)
+            
+            # Boost saturation using HSV
+            color_data = self._boost_saturation(color_data, multiplier=3.0)
+            
+            # Use the enhanced image for character mapping
+            image = sharpened_image
+        else:
+            # Convert to grayscale for B&W image
+            image = self._convert_to_grayscale(image)
+
         # Convert pixels to ASCII characters
         # For terminal: apply ANSI codes if color enabled
         # For image rendering: color_data will be passed separately to render_to_image
-        ascii_art = self._pixels_to_ascii(image, color_data if self.use_color else None)
+        ascii_art = self._pixels_to_ascii(image, color_data)
         
         # Store color_data for potential image rendering (even if ANSI wasn't applied)
         self._last_color_data = color_data
@@ -135,7 +145,7 @@ class AsciiConverter:
             new_height = int(uncorrected_height * 0.5)  # At least keep 50% of height
         
         # Resize the image
-        resized_image = image.resize((self.width, new_height), Image.Resampling.LANCZOS)
+        resized_image = image.resize((self.width, new_height), Image.Resampling.NEAREST)
         
         return resized_image
     
@@ -159,6 +169,51 @@ class AsciiConverter:
         # Get all pixel data as a flat list of (R, G, B) tuples
         pixels = list(rgb_image.getdata())
         return pixels
+
+        
+    def _boost_saturation(self, color_data: list, multiplier: float = 1.5) -> list:
+        """
+        Boost saturation of RGB colors by converting to HSV, increasing S, and converting back.
+        
+        Args:
+            color_data: List of (R, G, B) tuples
+            multiplier: Saturation multiplier (1.0 = no change, 1.5 = 50% boost, 2.0 = 100% boost)
+            
+        Returns:
+            List of (R, G, B) tuples with boosted saturation
+        """
+        import colorsys
+        
+        boosted_colors = []
+        
+        for r, g, b in color_data:
+            # Convert RGB (0-255) to normalized RGB (0.0-1.0)
+            r_norm = r / 255.0
+            g_norm = g / 255.0
+            b_norm = b / 255.0
+            
+            # Convert to HSV
+            h, s, v = colorsys.rgb_to_hsv(r_norm, g_norm, b_norm)
+            
+            # Boost saturation (clamp to 0.0-1.0)
+            s_boosted = min(1.0, s * multiplier)
+            
+            # Convert back to RGB
+            r_new, g_new, b_new = colorsys.hsv_to_rgb(h, s_boosted, v)
+            
+            # Convert back to 0-255 range and round
+            r_int = int(round(r_new * 255))
+            g_int = int(round(g_new * 255))
+            b_int = int(round(b_new * 255))
+            
+            # Clamp to valid range
+            r_int = max(0, min(255, r_int))
+            g_int = max(0, min(255, g_int))
+            b_int = max(0, min(255, b_int))
+            
+            boosted_colors.append((r_int, g_int, b_int))
+        
+        return boosted_colors
     
     
     def _rgb_to_ansi(self, r: int, g: int, b: int) -> str:

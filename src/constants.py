@@ -14,6 +14,8 @@ CHAR_SETS = {
     "detailed": "@%#*+=-:. ",  # Can be expanded with more characters
     
     "blocks": "█▓▒░ ",  # Unicode block characters (dark to light)
+    
+    "blocks-simple": "█▓▒░*+=-:. ",  # Combines blocks (dense) with simple characters (light)
 }
 
 # Default configuration
