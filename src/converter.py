@@ -88,6 +88,118 @@ class AsciiConverter:
         return ascii_art
     
     
+    def convert_gif(self, image_path: str) -> list:
+        """
+        Convert an animated GIF file to ASCII art for each frame.
+        
+        Args:
+            image_path: Path to the GIF file
+            
+        Returns:
+            List of dictionaries, each containing:
+                - 'ascii_art': String containing the ASCII art representation
+                - 'color_data': List of (R, G, B) tuples (if color enabled)
+                - 'duration': Frame duration in milliseconds
+                - 'frame_number': Frame index (0-based)
+        """
+        # Open the GIF
+        gif_image = Image.open(image_path)
+        
+        frames = []
+        frame_number = 0
+        
+        try:
+            while True:
+                # Get frame duration (default to 100ms if not specified)
+                duration = gif_image.info.get('duration', 100)
+                
+                # Process this frame
+                # Create a copy of the frame (important: GIF frames may be partial)
+                frame = gif_image.copy()
+                
+                # Convert palette mode (P) or other modes to RGB for processing
+                if frame.mode in ('P', 'RGBA', 'LA'):
+                    frame = frame.convert('RGB')
+                elif frame.mode != 'RGB':
+                    frame = frame.convert('RGB')
+                
+                # Resize the frame
+                resized_frame = self._resize_image(frame)
+                
+                # Initialize color_data
+                color_data = None
+                
+                # Enhance the frame before capturing colors
+                if self.use_color:
+                    from PIL import ImageEnhance
+                    
+                    # Enhance brightness and sharpness to make colors pop
+                    brightened_frame = ImageEnhance.Brightness(resized_frame).enhance(1.2)  # 20% brighter
+                    sharpened_frame = ImageEnhance.Sharpness(brightened_frame).enhance(1.5)  # 50% sharper
+                    
+                    # Capture colors from the enhanced frame
+                    color_data = self._capture_color_data(sharpened_frame)
+                    
+                    # Boost saturation using HSV
+                    color_data = self._boost_saturation(color_data, multiplier=3.0)
+                    
+                    # Use the enhanced frame for character mapping
+                    processed_frame = sharpened_frame
+                else:
+                    # Convert to grayscale for B&W image
+                    processed_frame = self._convert_to_grayscale(resized_frame)
+                
+                # Convert pixels to ASCII characters
+                ascii_art = self._pixels_to_ascii(processed_frame, color_data)
+                
+                # Store frame data
+                frames.append({
+                    'ascii_art': ascii_art,
+                    'color_data': color_data,
+                    'duration': duration,
+                    'frame_number': frame_number
+                })
+                
+                frame_number += 1
+                
+                # Move to next frame
+                gif_image.seek(gif_image.tell() + 1)
+                
+        except EOFError:
+            # Reached end of GIF
+            pass
+        
+        # Store last frame's color_data for compatibility (if needed)
+        if frames and self.use_color:
+            self._last_color_data = frames[-1]['color_data']
+        
+        return frames
+
+    
+    def is_animated_gif(self, image_path: str) -> bool:
+        """
+        Check if the image file is an animated GIF (has multiple frames).
+        
+        Args:
+            image_path: Path to the image file
+            
+        Returns:
+            True if the file is an animated GIF, False otherwise
+        """
+        try:
+            with Image.open(image_path) as img:
+                if img.format != 'GIF':
+                    return False
+                # Check if GIF is animated by trying to seek to next frame
+                try:
+                    img.seek(1)
+                    return True
+                except EOFError:
+                    # Only one frame, not animated
+                    return False
+        except Exception:
+            return False
+    
     def _load_image(self, image_path: str) -> Image.Image:
         """
         Load an image from file.
@@ -332,6 +444,51 @@ class AsciiConverter:
         return '\n'.join(ascii_art)
     
     
+    def render_gif_to_images(self, frames: list, font_size: int = 10, output_path: str = "ascii_output.gif") -> Image.Image:
+        """
+        Render ASCII art frames as an animated GIF.
+        
+        Args:
+            frames: List of frame dictionaries with 'ascii_art', 'color_data', and 'duration'
+            font_size: Font size for rendering (default: 10)
+            output_path: Path to save the animated GIF
+            
+        Returns:
+            PIL Image object of the first frame (for compatibility)
+        """
+        if not frames:
+            return None
+        
+        # Render each frame as an image
+        rendered_frames = []
+        for frame in frames:
+            frame_img = self.render_to_image(
+                frame['ascii_art'],
+                font_size=font_size,
+                output_path=None,  # Don't save individual frames
+                color_data=frame['color_data']
+            )
+            if frame_img:
+                # Set frame duration in milliseconds (PIL expects ms)
+                duration_ms = frame['duration'] if frame['duration'] > 0 else 100
+                frame_img.info['duration'] = duration_ms
+                rendered_frames.append(frame_img)
+        
+        if not rendered_frames:
+            return None
+        
+        # Save as animated GIF
+        # Use duration from first frame as default, PIL will use per-frame durations from info
+        rendered_frames[0].save(
+            output_path,
+            save_all=True,
+            append_images=rendered_frames[1:],
+            duration=rendered_frames[0].info.get('duration', 100),  # Duration in ms
+            loop=0  # Loop forever
+        )
+        
+        return rendered_frames[0]
+    
     def render_to_image(self, ascii_art: str, font_size: int = 10, output_path: str = "ascii_output.png", color_data: list = None) -> Image.Image:
         """
         Render ASCII art as an image file.
@@ -407,7 +564,8 @@ class AsciiConverter:
                 draw.text((0, y), line, fill='black', font=font)
                 y += int(char_height)
         
-        # Save the image
-        img.save(output_path)
+        # Save the image only if output_path is provided
+        if output_path:
+            img.save(output_path)
         return img
 
