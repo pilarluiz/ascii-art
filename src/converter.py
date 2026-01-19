@@ -274,8 +274,15 @@ class AsciiConverter:
         # Get image dimensions
         width, height = image.size
         
+        # Convert to grayscale for brightness calculation (even if we have color_data)
+        # This ensures we get single brightness values, not RGB tuples
+        if image.mode != 'L':
+            grayscale_image = image.convert('L')
+        else:
+            grayscale_image = image
+        
         # Get all pixel data as a flat list (brightness values 0-255)
-        pixels = list(image.getdata())
+        pixels = list(grayscale_image.getdata())
         
         # Normalize brightness range for better contrast
         # Use actual min/max from image instead of 0-255 range
